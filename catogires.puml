@@ -1,0 +1,117 @@
+@startuml
+autonumber
+
+title Payme Funding Sequence Diogram
+actor Customer
+participant Client
+participant "API Gateway" as APIGateway
+participant "Use Case" as UseCase
+participant "MongoDB" as MongoDB
+
+== Display category,transactions on main screen ==
+group Fetch user data
+  Client -> APIGateway: Transactions History GET /users/{userId}/transactions
+  Client -> APIGateway: All categores in main screen  GET /users/{userId}/categories
+end
+
+
+APIGateway -> APIGateway : resolve route to use case
+APIGateway -> UseCase : forward request with user info + params
+
+
+UseCase -> MongoDB: Query transactions,category for userId,\nfetches the user's transactions,categories from MongoDB
+MongoDB -> UseCase: Return transactions,category data
+UseCase -> APIGateway: Transactions,categories reponse data
+APIGateway -> Client:
+Client -> Client: Check if data was found
+
+alt #aaffaa Data found
+  Client -> Client: Show transactions history, all categories
+  Client -> Customer: Display transactions and categories
+else #FFAAAA No data found
+  Client -> Client: Show error or empty state
+  Client -> Customer: Show no data message
+end
+
+== Funding Creation ==
+
+
+Client -> APIGateway: Getting dynamic fields by category  GET /categories
+APIGateway -> APIGateway: Validate,\nPrepare request
+APIGateway -> UseCase: Get dynamic fields
+UseCase -> MongoDB: Query dynamic fields for category
+MongoDB -> UseCase: Field schema
+UseCase -> APIGateway: Return dynamic form fields for selected category
+APIGateway -> Client: Field definitions (JSON schema)
+
+
+
+Client -> APIGateway: Create Form POST /funds
+  APIGateway ->APIGateway: validate form data\nprepare request
+  APIGateway -> UseCase: Routes req to use case
+  UseCase -> MongoDB: Insert new form data
+
+== QR and Link Sharing  ==
+
+
+
+
+alt #aaffaa Form created
+    Client->APIGateway: Generate QR and share link POST /share-link
+  else #FFAAAA Form Creation failed
+    Client -> Client: Error/Failure
+  end
+APIGateway->UseCase: Create QR and Share link
+note right of APIGateway
+Request Body:
+{
+  "fund_id": "64cbb6b4d9c2f7a1e2f8a73d"
+}
+end note
+UseCase->MongoDB: Create QR and Sharlink with fee_id
+
+ == Monitoring ==
+
+ Client->APIGateway: Users funds history GET /users/{userId}/category/{categoryId}/funds
+' APIGateway ->APIGateway: Check user permissions
+ APIGateway -> APIGateway: Validate,Prepare request
+ APIGateway -> APIGateway: Resolve route to use case
+ APIGateway->UseCase: Get users transactions by userId
+ UseCase -> MongoDB: Query transactions for userId
+ MongoDB->UseCase: Transactions lists
+ UseCase->APIGateway: Return transactions data
+ APIGateway->Client: Transactions history
+
+ Client->APIGateway: Getting the Fund details GET /funds/{fund_id}
+ APIGateway -> APIGateway : resolve route to use case
+ APIGateway->UseCase: Get Fund bu fund_id
+ UseCase->MongoDB: Query funds by fund_id
+ MongoDB->UseCase: Return the Fund data
+ UseCase->APIGateway:Fund response data
+ APIGateway->Client: The fund details
+ Client->APIGateway: Fund update (Creator Only) PATCH /funds/{fund_id}
+ APIGateway -> APIGateway: Validate,prepare request
+ APIGateway -> APIGateway : resolve route to use case
+ APIGateway->UseCase: Update the fund
+ UseCase->MongoDB: Update the fund by fund_id
+ alt #aaffaa Update successful
+   MongoDB --> UseCase: Update successful
+   UseCase --> APIGateway: Fund updated
+   APIGateway --> Client: Fund update confirmed
+ else #FFAAAA Update failed
+   MongoDB --> UseCase: Update failed
+   UseCase -> APIGateway: 403 Forbidden or 404 Not Found
+   APIGateway -> Client: Show update error message
+ end
+
+
+
+
+
+
+
+
+
+
+
+@enduml
